@@ -1,0 +1,191 @@
+import fs from 'fs';
+import path from 'path';
+
+export const LEAGUE_INFO_FILE_NAME = "leagueinfo.json";
+export const PLAYERS_FILE_NAME = "players.json";
+export const RESULTS_DIR_NAME = "results";
+
+export interface LeagueInfo {
+  readonly name: string;
+  readonly started: Date;
+  readonly format: string;
+  readonly winnerPoint: number;
+  readonly perPairMatches: number;
+  readonly finished: boolean;
+}
+
+export interface Player {
+  readonly id: string;
+  readonly name: string;
+}
+
+export interface MatchResult {
+  readonly matchDay?: Date;
+  readonly player1Id: string;
+  readonly player2Id: string;
+  readonly player1Score: number;
+  readonly player2Score: number;
+  readonly rackWinners?: string[];
+}
+
+export interface StandingItem {
+  rank: number;
+  readonly player: Player;
+  readonly played: number;
+  readonly won: number;
+  readonly points: number;
+  readonly racksFor: number;
+  readonly racksAgainst: number;
+  readonly rackDifference: number;
+  readonly matches: MatchResult[];
+}
+
+export interface LeagueResult {
+  readonly league: LeagueInfo;
+  readonly players: {[k: string]: Player};
+  readonly results: MatchResult[];
+  readonly standings: StandingItem[];
+}
+
+// FIXME: find better way to parse
+function parseLeagueInfo(filename: string): LeagueInfo {
+  const json = JSON.parse(fs.readFileSync(filename, "utf-8"));
+  return {
+    name: json.name,
+    started: new Date(json.started),
+    format: json.format,
+    winnerPoint: json.winnerPoint || 1,
+    perPairMatches: json.perPairMatches || 1,
+    finished: json.finished || false,
+  };
+}
+
+function parsePlayersInfo(filename: string): {[k: string]: Player} {
+  const json: {[k1: string]: {[k2: string]: string}} = JSON.parse(fs.readFileSync(filename, "utf-8"));
+  const players: {[k: string]: Player} = {};
+  for (let playerId in json) {
+    const playerInfo = json[playerId];
+    players[playerId] = {
+      id: playerId,
+      name: playerInfo.name,
+    };
+  }
+  return players;
+}
+
+function parseResult(filename: string, players: {[k: string]: Player}): MatchResult[] {
+  const json: {[k: string]: number}[] = JSON.parse(fs.readFileSync(filename, "utf-8"));
+  return json.map(result => {
+    const playerIds: string[] = [];
+    for (let key in result) {
+      if (!(key in players)) {
+        throw Error(`Invalid player with id ${key} in file ${filename}`);
+      }
+      playerIds.push(key);
+    }
+    if (result[playerIds[0]] === result[playerIds[1]]) {
+      throw Error(`Tie detected in file ${filename}`);
+    }
+    return {
+      player1Id: playerIds[0],
+      player2Id: playerIds[1],
+      player1Score: result[playerIds[0]],
+      player2Score: result[playerIds[1]],
+    }
+  })
+}
+
+function standingComparator(item1: StandingItem, item2: StandingItem): number {
+  if (item1.points === item2.points) {
+    return item1.rackDifference - item2.rackDifference
+  }
+  return item1.points - item2.points;
+}
+
+function calculateRackDifference(playerId: string, result: MatchResult) {
+  if (playerId === result.player1Id) {
+    return result.player1Score - result.player2Score;
+  }
+  if (playerId === result.player2Id) {
+    return result.player2Score - result.player1Score;
+  }
+  throw Error(`${playerId} didn't play the match`);
+}
+
+function calculateRacksFor(playerId: string, result: MatchResult) {
+  if (playerId === result.player1Id) {
+    return result.player1Score;
+  }
+  if (playerId === result.player2Id) {
+    return result.player2Score;
+  }
+  throw Error(`${playerId} didn't play the match`);
+}
+
+function calculateRacksAgainst(playerId: string, result: MatchResult) {
+  if (playerId === result.player1Id) {
+    return result.player2Score;
+  }
+  if (playerId === result.player2Id) {
+    return result.player1Score;
+  }
+  throw Error(`${playerId} didn't play the match`);
+}
+
+function calculateStandings(league: LeagueInfo, results: MatchResult[], players: {[k: string]: Player}): StandingItem[] {
+  const standings: StandingItem[] = [];
+  for (let playerId in players) {
+    const matches = results
+      .filter(result => result.player2Id == playerId || result.player1Id == playerId)
+    const differences = matches.map(result => calculateRackDifference(playerId, result));
+    const won = differences.filter(x => x > 0).length;
+    standings.push({
+      rank: 1,
+      player: players[playerId],
+      played: matches.length,
+      won,
+      points: won * league.perPairMatches,
+      racksFor: matches.map(result => calculateRacksFor(playerId, result)).reduce((acc, x) => acc+x),
+      racksAgainst: matches.map(result => calculateRacksAgainst(playerId, result)).reduce((acc, x) => acc+x),
+      rackDifference: differences.reduce((acc, x) => x+acc),
+      matches,
+    })
+  }
+  standings.sort(standingComparator);
+  for (let i = 1; i < standings.length; i ++) {
+    let rankIncrement = 0;
+    if (standingComparator(standings[i-1], standings[i]) !== 0) {
+      rankIncrement = 1;
+    }
+    standings[i].rank = standings[i-1].rank + rankIncrement;
+  }
+  return standings;
+}
+
+export function parseLeagueResults(root: string): LeagueResult[] {
+  return fs
+    .readdirSync(root, {withFileTypes: true})
+    .filter(x => x.isDirectory())
+    .map(x => x.name)
+    .map(leagueDir => {
+      const infoFile = path.join(root, leagueDir, LEAGUE_INFO_FILE_NAME);
+      const playersFile = path.join(root, leagueDir, PLAYERS_FILE_NAME);
+      const resultsPath = path.join(root, leagueDir, RESULTS_DIR_NAME);
+      const players = parsePlayersInfo(playersFile)
+      const results = fs.readdirSync(resultsPath, {withFileTypes: true})
+        .filter(x => x.isFile)
+        .map(x => x.name)
+        .map(resFile => {
+          return parseResult(path.join(resultsPath, resFile), players);
+        }).flat();
+      const league = parseLeagueInfo(infoFile);
+      const standings: StandingItem[] = calculateStandings(league, results, players);
+      return {
+        league,
+        players,
+        results,
+        standings,
+      }
+    })
+    .sort((league1, league2) => league2.league.started.getTime() - league1.league.started.getTime());
+}
