@@ -53,7 +53,7 @@ const results: {[k: string]: number}[] = [
   },
   {
     "Mark": 9,
-    "Ryan": 4
+    "Ryan": 2
   },
   {
     "Mark": 7,
