@@ -30,7 +30,7 @@ const players: {[k:string]: {[k: string]: string}} = {
     "name": "Shane Balden"
   },
   "Attila": {
-    "name": "Shane Balden"
+    "name": "Attila Toth"
   }
 };
 
