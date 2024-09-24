@@ -1,5 +1,7 @@
-import fs from 'fs';
-import path from 'path';
+import league202409Info from "./data/league202409/leagueinfo";
+import league202409Players from "./data/league202409/players";
+import league202409Results from "./data/league202409/results";
+
 
 export const LEAGUE_INFO_FILE_NAME = "leagueinfo.json";
 export const PLAYERS_FILE_NAME = "players.json";
@@ -47,9 +49,7 @@ export interface LeagueResult {
   readonly standings: StandingItem[];
 }
 
-// FIXME: find better way to parse
-function parseLeagueInfo(filename: string): LeagueInfo {
-  const json = JSON.parse(fs.readFileSync(filename, "utf-8"));
+function parseLeagueInfo(json: any): LeagueInfo {
   return {
     name: json.name,
     started: new Date(json.started),
@@ -60,8 +60,7 @@ function parseLeagueInfo(filename: string): LeagueInfo {
   };
 }
 
-function parsePlayersInfo(filename: string): {[k: string]: Player} {
-  const json: {[k1: string]: {[k2: string]: string}} = JSON.parse(fs.readFileSync(filename, "utf-8"));
+function parsePlayersInfo(json: {[k1: string]: {[k2: string]: string}}): {[k: string]: Player} {
   const players: {[k: string]: Player} = {};
   for (let playerId in json) {
     const playerInfo = json[playerId];
@@ -73,18 +72,17 @@ function parsePlayersInfo(filename: string): {[k: string]: Player} {
   return players;
 }
 
-function parseResult(filename: string, players: {[k: string]: Player}): MatchResult[] {
-  const json: {[k: string]: number}[] = JSON.parse(fs.readFileSync(filename, "utf-8"));
+function parseResult(json: {[k: string]: number}[], players: {[k: string]: Player}): MatchResult[] {
   return json.map(result => {
     const playerIds: string[] = [];
     for (let key in result) {
       if (!(key in players)) {
-        throw Error(`Invalid player with id ${key} in file ${filename}`);
+        throw Error(`Invalid player with id ${key}`);
       }
       playerIds.push(key);
     }
     if (result[playerIds[0]] === result[playerIds[1]]) {
-      throw Error(`Tie detected in file ${filename}`);
+      throw Error(`Tie detected`);
     }
     return {
       player1Id: playerIds[0],
@@ -97,9 +95,9 @@ function parseResult(filename: string, players: {[k: string]: Player}): MatchRes
 
 function standingComparator(item1: StandingItem, item2: StandingItem): number {
   if (item1.points === item2.points) {
-    return item1.rackDifference - item2.rackDifference
+    return item2.rackDifference - item1.rackDifference
   }
-  return item1.points - item2.points;
+  return item2.points - item1.points;
 }
 
 function calculateRackDifference(playerId: string, result: MatchResult) {
@@ -136,7 +134,7 @@ function calculateStandings(league: LeagueInfo, results: MatchResult[], players:
   const standings: StandingItem[] = [];
   for (let playerId in players) {
     const matches = results
-      .filter(result => result.player2Id == playerId || result.player1Id == playerId)
+      .filter(result => result.player2Id === playerId || result.player1Id === playerId)
     const differences = matches.map(result => calculateRackDifference(playerId, result));
     const won = differences.filter(x => x > 0).length;
     standings.push({
@@ -162,30 +160,16 @@ function calculateStandings(league: LeagueInfo, results: MatchResult[], players:
   return standings;
 }
 
-export function parseLeagueResults(root: string): LeagueResult[] {
-  return fs
-    .readdirSync(root, {withFileTypes: true})
-    .filter(x => x.isDirectory())
-    .map(x => x.name)
-    .map(leagueDir => {
-      const infoFile = path.join(root, leagueDir, LEAGUE_INFO_FILE_NAME);
-      const playersFile = path.join(root, leagueDir, PLAYERS_FILE_NAME);
-      const resultsPath = path.join(root, leagueDir, RESULTS_DIR_NAME);
-      const players = parsePlayersInfo(playersFile)
-      const results = fs.readdirSync(resultsPath, {withFileTypes: true})
-        .filter(x => x.isFile)
-        .map(x => x.name)
-        .map(resFile => {
-          return parseResult(path.join(resultsPath, resFile), players);
-        }).flat();
-      const league = parseLeagueInfo(infoFile);
-      const standings: StandingItem[] = calculateStandings(league, results, players);
-      return {
-        league,
-        players,
-        results,
-        standings,
-      }
-    })
-    .sort((league1, league2) => league2.league.started.getTime() - league1.league.started.getTime());
+function calculateResultForLeague(leagueJson: any, playersJson: any, resultsJson: any): LeagueResult {
+  const players = parsePlayersInfo(playersJson);
+  const results = parseResult(resultsJson, players);
+  const league = parseLeagueInfo(leagueJson);
+  const standings: StandingItem[] = calculateStandings(league, results, players);
+  return { players, results, league, standings };
+}
+
+export function parseLeagueResults(): LeagueResult[] {
+  return [
+    calculateResultForLeague(league202409Info, league202409Players, league202409Results),
+  ];
 }

@@ -1,4 +1,4 @@
-[
+const results: {[k: string]: number}[] = [
   {
     "Andy": 9,
     "Mumit": 7
@@ -59,4 +59,6 @@
     "Mark": 7,
     "Krali": 9
   }
-]
+];
+
+export default results;

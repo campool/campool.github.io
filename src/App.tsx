@@ -1,15 +1,12 @@
 import './App.css';
 import { parseLeagueResults } from './league';
+import { LeagueStanding } from './league/LeagueStanding';
 
 function App() {
-  const leagueResult = parseLeagueResults("./public/leagues")[0];
+  const leagueResult = parseLeagueResults()[0];
   return (
     <div className="App">
-      <header className="App-header">
-        <p>
-          {JSON.stringify(leagueResult)}
-        </p>
-      </header>
+      <LeagueStanding {...leagueResult} />
     </div>
   );
 }

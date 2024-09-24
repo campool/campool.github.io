@@ -1,4 +1,4 @@
-{
+const players: {[k:string]: {[k: string]: string}} = {
   "Andy": {
     "name": "Andy D'Alessandro"
   },
@@ -32,5 +32,6 @@
   "Attila": {
     "name": "Shane Balden"
   }
-}
+};
 
+export default players;
