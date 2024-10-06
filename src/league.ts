@@ -94,10 +94,15 @@ function parseResult(json: {[k: string]: number}[], players: {[k: string]: Playe
 }
 
 function standingComparator(item1: StandingItem, item2: StandingItem): number {
-  if (item1.points === item2.points) {
-    return item2.rackDifference - item1.rackDifference
+  const pointsDelta = item2.points - item1.points;
+  if (pointsDelta === 0) {
+    const rackDiffDelta = item2.rackDifference - item1.rackDifference
+    if (rackDiffDelta === 0) {
+      return item2.racksFor - item1.racksFor;
+    }
+    return rackDiffDelta;
   }
-  return item2.points - item1.points;
+  return pointsDelta;
 }
 
 function calculateRackDifference(playerId: string, result: MatchResult) {
