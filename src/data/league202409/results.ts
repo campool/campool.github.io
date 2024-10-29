@@ -154,6 +154,10 @@ const results: {[k: string]: number}[] = [
   {
     "Mark": 9,
     "Attila": 2
+  },
+  {
+    "Andy": 9,
+    "Shane": 6
   }
 ];
 
