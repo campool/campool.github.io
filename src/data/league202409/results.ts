@@ -158,6 +158,26 @@ const results: {[k: string]: number}[] = [
   {
     "Andy": 9,
     "Shane": 6
+  },
+  {
+    "Andy": 9,
+    "Attila": 7
+  },
+  {
+    "Mumit": 9,
+    "Greg": 4
+  },
+  {
+    "Krali": 9,
+    "Joe": 7
+  },
+  {
+    "Jack": 9,
+    "Ryan": 4
+  },
+  {
+    "Leroy": 9,
+    "Shane": 5
   }
 ];
 
